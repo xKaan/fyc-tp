@@ -2,29 +2,14 @@
 
 @section('contenu')
 
-    @php
-        // Encore le decoupage des tags, comme sur la liste.
-        $listeTags = [];
-        if ($note->tags != '') {
-            foreach (explode(',', $note->tags) as $t) {
-                if (trim($t) != '') {
-                    $listeTags[] = trim($t);
-                }
-            }
-        }
-
-        $nombreDeMots = count(explode(' ', $note->content));
-        $tempsDeLecture = ceil($nombreDeMots / 200);
-    @endphp
-
     <h2>{{ $note->title }}</h2>
-    <p><small>{{ $nombreDeMots }} mots &middot; {{ $tempsDeLecture }} min de lecture</small></p>
+    <p><small>{{ $note->word_count }} mots &middot; {{ $note->reading_time }} min de lecture</small></p>
 
-    @foreach ($listeTags as $t)
-        <a class="tag" href="/tag/{{ $t }}">{{ $t }}</a>
+    @foreach ($note->tag_list as $tag)
+        <a class="tag" href="{{ route('notes.tagged', $tag) }}">{{ $tag }}</a>
     @endforeach
 
-    @if ($note->summary != '')
+    @if ($note->summary)
         <div class="resume">
             <strong>Resume</strong>
             <p>{{ $note->summary }}</p>
@@ -35,18 +20,23 @@
 
     <hr>
 
-    <form class="inline" method="post" action="/notes/{{ $note->id }}/summarize">
+    <form class="inline" method="post" action="{{ route('notes.summarize', $note) }}">
         @csrf
         <button>Resumer avec l'IA</button>
     </form>
 
-    <form class="inline" method="post" action="/notes/{{ $note->id }}/tags">
+    <form class="inline" method="post" action="{{ route('notes.tags', $note) }}">
         @csrf
         <button>Suggerer des tags</button>
     </form>
 
-    <a href="/notes/{{ $note->id }}/edit">Modifier</a>
-    &middot;
-    <a href="/notes/{{ $note->id }}/delete">Supprimer</a>
+    <a href="{{ route('notes.edit', $note) }}">Modifier</a>
+
+    <form class="inline" method="post" action="{{ route('notes.destroy', $note) }}"
+          onsubmit="return confirm('Supprimer cette note ?')">
+        @csrf
+        @method('DELETE')
+        <button class="secondaire">Supprimer</button>
+    </form>
 
 @endsection

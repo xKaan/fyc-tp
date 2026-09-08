@@ -13,6 +13,7 @@
         .tag { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 4px; padding: 1px 8px; margin-right: 4px; font-size: 12px; }
         .resume { background: #f0fdf4; border-left: 3px solid #16a34a; padding: 8px 12px; margin: 12px 0; }
         .erreur { background: #fef2f2; border-left: 3px solid #dc2626; padding: 8px 12px; margin-bottom: 16px; }
+        .statut { background: #eff6ff; border-left: 3px solid #2563eb; padding: 8px 12px; margin-bottom: 16px; }
         input[type=text], textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font: inherit; }
         textarea { min-height: 180px; }
         label { display: block; margin: 12px 0 4px; font-weight: 600; font-size: 14px; }
@@ -23,12 +24,20 @@
 </head>
 <body>
 <header>
-    <h1><a href="/notes">Mes Notes</a></h1>
-    <a href="/notes/create">Nouvelle note</a>
+    <h1><a href="{{ route('notes.index') }}">Mes Notes</a></h1>
+    <a href="{{ route('notes.create') }}">Nouvelle note</a>
 </header>
 
-@if (session('erreur'))
-    <p class="erreur">{{ session('erreur') }}</p>
+@if (session('status'))
+    <p class="statut">{{ session('status') }}</p>
+@endif
+
+@if ($errors->any())
+    <div class="erreur">
+        @foreach ($errors->all() as $message)
+            <p>{{ $message }}</p>
+        @endforeach
+    </div>
 @endif
 
 @yield('contenu')

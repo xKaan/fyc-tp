@@ -1,43 +1,24 @@
 <?php
 
 use App\Http\Controllers\NoteController;
-use App\Models\Note;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return redirect('/notes');
-});
+Route::redirect('/', '/notes');
 
-Route::get('/notes', [NoteController::class, 'index']);
-Route::get('/notes/create', [NoteController::class, 'create']);
-Route::post('/notes', [NoteController::class, 'store']);
-Route::get('/notes/{id}', [NoteController::class, 'show']);
-Route::get('/notes/{id}/edit', [NoteController::class, 'edit']);
-Route::post('/notes/{id}', [NoteController::class, 'update']);
-Route::post('/notes/{id}/summarize', [NoteController::class, 'summarize']);
-Route::post('/notes/{id}/tags', [NoteController::class, 'suggestTags']);
+// Attention a l'ordre : /notes/create doit etre declaree avant /notes/{note},
+// sinon "create" serait pris pour un identifiant de note.
+Route::get('/notes', [NoteController::class, 'index'])->name('notes.index');
+Route::get('/notes/create', [NoteController::class, 'create'])->name('notes.create');
+Route::post('/notes', [NoteController::class, 'store'])->name('notes.store');
+Route::get('/notes/{note}', [NoteController::class, 'show'])->name('notes.show');
+Route::get('/notes/{note}/edit', [NoteController::class, 'edit'])->name('notes.edit');
 
-// Suppression : c'est juste une ligne, pas la peine de passer par le controleur.
-Route::get('/notes/{id}/delete', function ($id) {
-    $note = Note::where('id', $id)->first();
-    $note->delete();
+// La modification reste en POST : c'est ce que decrivent les tests fournis,
+// et ceux-la ne se touchent pas. La suppression, elle, passe en DELETE.
+Route::post('/notes/{note}', [NoteController::class, 'update'])->name('notes.update');
+Route::delete('/notes/{note}', [NoteController::class, 'destroy'])->name('notes.destroy');
 
-    return redirect('/notes');
-});
+Route::post('/notes/{note}/summarize', [NoteController::class, 'summarize'])->name('notes.summarize');
+Route::post('/notes/{note}/tags', [NoteController::class, 'suggestTags'])->name('notes.tags');
 
-// Filtrer les notes qui portent un tag donne.
-Route::get('/tag/{tag}', function ($tag) {
-    $notes = Note::all();
-
-    $resultat = [];
-    foreach ($notes as $note) {
-        $liste = explode(',', $note->tags);
-        foreach ($liste as $t) {
-            if (trim($t) == $tag) {
-                $resultat[] = $note;
-            }
-        }
-    }
-
-    return view('notes.index', ['notes' => collect($resultat)]);
-});
+Route::get('/tag/{tag}', [NoteController::class, 'tagged'])->name('notes.tagged');

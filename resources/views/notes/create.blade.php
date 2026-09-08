@@ -4,7 +4,7 @@
 
     <h2>Nouvelle note</h2>
 
-    <form method="post" action="/notes">
+    <form method="post" action="{{ route('notes.store') }}">
         @csrf
 
         <label for="title">Titre</label>
@@ -18,7 +18,7 @@
 
         <p>
             <button>Enregistrer</button>
-            <a href="/notes">Annuler</a>
+            <a href="{{ route('notes.index') }}">Annuler</a>
         </p>
     </form>
 

@@ -2,45 +2,25 @@
 
 @section('contenu')
 
-    <form method="get" action="/notes">
+    <form method="get" action="{{ route('notes.index') }}">
         <input type="text" name="q" placeholder="Rechercher dans les titres..." value="{{ request('q') }}">
     </form>
 
-    @if (count($notes) == 0)
-        <p>Aucune note pour l'instant.</p>
-    @endif
-
-    @foreach ($notes as $note)
-        @php
-            // On coupe le contenu pour l'apercu.
-            $apercu = $note->content;
-            if (strlen($apercu) > 120) {
-                $apercu = substr($apercu, 0, 120) . '...';
-            }
-
-            // Les tags sont stockes en une chaine, il faut les redecouper.
-            $listeTags = [];
-            if ($note->tags != '') {
-                foreach (explode(',', $note->tags) as $t) {
-                    if (trim($t) != '') {
-                        $listeTags[] = trim($t);
-                    }
-                }
-            }
-        @endphp
-
+    @forelse ($notes as $note)
         <div class="note">
-            <h2><a href="/notes/{{ $note->id }}">{{ $note->title }}</a></h2>
-            <p>{{ $apercu }}</p>
+            <h2><a href="{{ route('notes.show', $note) }}">{{ $note->title }}</a></h2>
+            <p>{{ $note->excerpt }}</p>
 
-            @foreach ($listeTags as $t)
-                <a class="tag" href="/tag/{{ $t }}">{{ $t }}</a>
+            @foreach ($note->tag_list as $tag)
+                <a class="tag" href="{{ route('notes.tagged', $tag) }}">{{ $tag }}</a>
             @endforeach
 
-            @if ($note->summary != '')
+            @if ($note->summary)
                 <p><em>Resume disponible</em></p>
             @endif
         </div>
-    @endforeach
+    @empty
+        <p>Aucune note pour l'instant.</p>
+    @endforelse
 
 @endsection

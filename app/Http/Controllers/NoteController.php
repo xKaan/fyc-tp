@@ -1,193 +1,101 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
+use App\Adapters\TextGenerationFailed;
+use App\Http\Requests\StoreNoteRequest;
+use App\Http\Requests\UpdateNoteRequest;
 use App\Models\Note;
+use App\UseCases\SuggestTags;
+use App\UseCases\SummarizeNote;
+use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 
+/**
+ * Le controleur ne fait plus que du HTTP : recevoir une requete, declencher
+ * une action, renvoyer une reponse. Il ne sait ni construire un prompt, ni
+ * quel fournisseur d'IA est utilise.
+ */
 class NoteController extends Controller
 {
-    public function index(Request $request)
+    private const AI_UNAVAILABLE = "Le service d'IA n'a pas repondu. Reessayez dans un instant.";
+
+    public function index(Request $request): View
     {
-        // On charge tout, on triera apres.
-        $notes = Note::all();
+        $terme = trim((string) $request->input('q'));
 
-        $recherche = $request->input('q');
-        if ($recherche != '') {
-            $resultat = [];
-            foreach ($notes as $n) {
-                if (strpos(strtolower($n->title), strtolower($recherche)) !== false) {
-                    $resultat[] = $n;
-                }
-            }
-            $notes = collect($resultat);
-        }
-
-        $notes = $notes->sortByDesc('created_at');
+        $notes = Note::query()
+            ->when($terme !== '', fn (Builder $query) => $query->matchingTitle($terme))
+            ->latest()
+            ->get();
 
         return view('notes.index', ['notes' => $notes]);
     }
 
-    public function create()
+    public function tagged(string $tag): View
+    {
+        return view('notes.index', ['notes' => Note::tagged($tag)->latest()->get()]);
+    }
+
+    public function create(): View
     {
         return view('notes.create');
     }
 
-    public function store(Request $request)
+    public function store(StoreNoteRequest $request): RedirectResponse
     {
-        // Validation
-        if ($request->input('title') == '') {
-            return redirect('/notes/create')->with('erreur', 'Le titre est obligatoire.');
-        }
-        if (strlen($request->input('title')) > 200) {
-            return redirect('/notes/create')->with('erreur', 'Le titre est trop long.');
-        }
-        if ($request->input('content') == '') {
-            return redirect('/notes/create')->with('erreur', 'Le contenu est obligatoire.');
-        }
+        $note = Note::create($request->validated());
 
-        $note = new Note();
-        $note->title = $request->input('title');
-        $note->content = $request->input('content');
-        $note->tags = $request->input('tags');
-        $note->save();
-
-        return redirect('/notes/' . $note->id);
+        return redirect()->route('notes.show', $note)->with('status', 'Note creee.');
     }
 
-    public function show($id)
+    public function show(Note $note): View
     {
-        $note = Note::where('id', $id)->first();
-
         return view('notes.show', ['note' => $note]);
     }
 
-    public function edit($id)
+    public function edit(Note $note): View
     {
-        $note = Note::where('id', $id)->first();
-
         return view('notes.edit', ['note' => $note]);
     }
 
-    public function update($id, Request $request)
+    public function update(UpdateNoteRequest $request, Note $note): RedirectResponse
     {
-        $note = Note::where('id', $id)->first();
+        $note->update($request->validated());
 
-        if ($request->input('title') == '') {
-            return redirect('/notes/' . $id . '/edit')->with('erreur', 'Le titre est obligatoire.');
-        }
-        if ($request->input('content') == '') {
-            return redirect('/notes/' . $id . '/edit')->with('erreur', 'Le contenu est obligatoire.');
-        }
-
-        $note->update($request->except('_token'));
-
-        return redirect('/notes/' . $id);
+        return redirect()->route('notes.show', $note)->with('status', 'Note mise a jour.');
     }
 
-    public function summarize($id, Request $request)
+    public function destroy(Note $note): RedirectResponse
     {
-        $note = Note::where('id', $id)->first();
+        $note->delete();
 
-        Log::info('summarize', $request->all());
-
-        $provider = env('AI_PROVIDER', 'mistral');
-
-        if ($provider == 'mistral') {
-            $cle = env('MISTRAL_API_KEY');
-
-            $reponse = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $cle,
-                'Content-Type' => 'application/json',
-            ])->post('https://api.mistral.ai/v1/chat/completions', [
-                'model' => 'mistral-small-latest',
-                'messages' => [
-                    [
-                        'role' => 'user',
-                        'content' => "Resume la note suivante en 3 phrases maximum, en francais. "
-                            . "Ne reponds que le resume, sans introduction.\n\n"
-                            . $note->title . "\n" . $note->content,
-                    ],
-                ],
-            ]);
-
-            $resume = $reponse->json()['choices'][0]['message']['content'];
-        } else {
-            $reponse = Http::post('http://host.docker.internal:11434/api/generate', [
-                'model' => 'llama3.2:3b',
-                'prompt' => "Resume la note suivante en 3 phrases maximum, en francais. "
-                    . "Ne reponds que le resume, sans introduction.\n\n"
-                    . $note->title . "\n" . $note->content,
-                'stream' => false,
-            ]);
-
-            $resume = $reponse->json()['response'];
-        }
-
-        // $resume = str_replace('**', '', $resume);
-        // $resume = substr($resume, 0, 500);
-
-        $note->summary = $resume;
-        $note->save();
-
-        return redirect('/notes/' . $id);
+        return redirect()->route('notes.index')->with('status', 'Note supprimee.');
     }
 
-    public function suggestTags($id, Request $request)
+    public function summarize(Note $note, SummarizeNote $summarize): RedirectResponse
     {
-        $note = Note::where('id', $id)->first();
-
-        Log::info('tags', $request->all());
-
-        $provider = env('AI_PROVIDER', 'mistral');
-
-        if ($provider == 'mistral') {
-            $cle = env('MISTRAL_API_KEY');
-
-            $reponse = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $cle,
-                'Content-Type' => 'application/json',
-            ])->post('https://api.mistral.ai/v1/chat/completions', [
-                'model' => 'mistral-small-latest',
-                'messages' => [
-                    [
-                        'role' => 'user',
-                        'content' => "Donne au maximum 5 tags pour la note suivante. "
-                            . "Reponds uniquement avec les tags separes par des virgules.\n\n"
-                            . $note->title . "\n" . $note->content,
-                    ],
-                ],
-            ]);
-
-            $texte = $reponse->json()['choices'][0]['message']['content'];
-        } else {
-            $reponse = Http::post('http://host.docker.internal:11434/api/generate', [
-                'model' => 'llama3.2:3b',
-                'prompt' => "Donne au maximum 5 tags pour la note suivante. "
-                    . "Reponds uniquement avec les tags separes par des virgules.\n\n"
-                    . $note->title . "\n" . $note->content,
-                'stream' => false,
-            ]);
-
-            $texte = $reponse->json()['response'];
+        try {
+            $summarize($note);
+        } catch (TextGenerationFailed) {
+            return back()->withErrors(['ai' => self::AI_UNAVAILABLE]);
         }
 
-        // On nettoie ce que le modele a renvoye.
-        $morceaux = explode(',', $texte);
-        $tags = [];
-        foreach ($morceaux as $morceau) {
-            $morceau = trim(strtolower($morceau));
-            $morceau = str_replace('#', '', $morceau);
-            if ($morceau != '' && count($tags) < 5) {
-                $tags[] = $morceau;
-            }
+        return back()->with('status', 'Resume genere.');
+    }
+
+    public function suggestTags(Note $note, SuggestTags $suggestTags): RedirectResponse
+    {
+        try {
+            $suggestTags($note);
+        } catch (TextGenerationFailed) {
+            return back()->withErrors(['ai' => self::AI_UNAVAILABLE]);
         }
 
-        $note->tags = implode(',', $tags);
-        $note->save();
-
-        return redirect('/notes/' . $id);
+        return back()->with('status', 'Tags suggeres.');
     }
 }
