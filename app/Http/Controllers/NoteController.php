@@ -93,10 +93,10 @@ class NoteController extends Controller
 
         Log::info('summarize', $request->all());
 
-        $provider = env('AI_PROVIDER', 'mistral');
+        $provider = env('LLM_PROVIDER', 'ollama');
 
-        if ($provider == 'mistral') {
-            $cle = env('MISTRAL_API_KEY');
+        if ($provider == 'http') {
+            $cle = env('LLM_HTTP_API_KEY');
 
             $reponse = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $cle,
@@ -115,15 +115,17 @@ class NoteController extends Controller
 
             $resume = $reponse->json()['choices'][0]['message']['content'];
         } else {
-            $reponse = Http::post('http://host.docker.internal:11434/api/generate', [
+            $reponse = Http::post('http://host.docker.internal:11434/api/chat', [
                 'model' => 'llama3.2:3b',
-                'prompt' => "Resume la note suivante en 3 phrases maximum, en francais. "
-                    . "Ne reponds que le resume, sans introduction.\n\n"
-                    . $note->title . "\n" . $note->content,
+                'messages' => [
+                    ['role' => 'user', 'content' => "Resume la note suivante en 3 phrases maximum, en francais. "
+                        . "Ne reponds que le resume, sans introduction.\n\n"
+                        . $note->title . "\n" . $note->content],
+                ],
                 'stream' => false,
             ]);
 
-            $resume = $reponse->json()['response'];
+            $resume = $reponse->json()['message']['content'];
         }
 
         // $resume = str_replace('**', '', $resume);
@@ -141,10 +143,10 @@ class NoteController extends Controller
 
         Log::info('tags', $request->all());
 
-        $provider = env('AI_PROVIDER', 'mistral');
+        $provider = env('LLM_PROVIDER', 'ollama');
 
-        if ($provider == 'mistral') {
-            $cle = env('MISTRAL_API_KEY');
+        if ($provider == 'http') {
+            $cle = env('LLM_HTTP_API_KEY');
 
             $reponse = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $cle,
@@ -163,15 +165,17 @@ class NoteController extends Controller
 
             $texte = $reponse->json()['choices'][0]['message']['content'];
         } else {
-            $reponse = Http::post('http://host.docker.internal:11434/api/generate', [
+            $reponse = Http::post('http://host.docker.internal:11434/api/chat', [
                 'model' => 'llama3.2:3b',
-                'prompt' => "Donne au maximum 5 tags pour la note suivante. "
-                    . "Reponds uniquement avec les tags separes par des virgules.\n\n"
-                    . $note->title . "\n" . $note->content,
+                'messages' => [
+                    ['role' => 'user', 'content' => "Donne au maximum 5 tags pour la note suivante. "
+                        . "Reponds uniquement avec les tags separes par des virgules.\n\n"
+                        . $note->title . "\n" . $note->content],
+                ],
                 'stream' => false,
             ]);
 
-            $texte = $reponse->json()['response'];
+            $texte = $reponse->json()['message']['content'];
         }
 
         // On nettoie ce que le modele a renvoye.
