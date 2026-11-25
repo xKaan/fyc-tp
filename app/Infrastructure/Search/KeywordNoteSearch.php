@@ -45,9 +45,9 @@ final class KeywordNoteSearch implements NoteSearch
 
         $candidates = Note::query()
             ->with('project')
-            // TODO étape 2 : filtrer par droits ici, dans la requête.
-            // Seules les notes des projets de $user doivent être lues, et une
-            // note sans projet ne doit jamais sortir.
+            // Les droits, dans la requête : seules les notes des projets de
+            // l'utilisateur sont lues. Une note sans projet ne sort jamais.
+            ->whereIn('project_id', $user->readableProjectIds())
             ->where(function (Builder $query) use ($termes): void {
                 foreach ($termes as $terme) {
                     $query->orWhereLike('title', "%{$terme}%")->orWhereLike('content', "%{$terme}%");

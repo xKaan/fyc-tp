@@ -6,9 +6,10 @@ namespace App\Application\Agent;
 
 use App\Application\Prompt;
 use App\Domain\Ports\LlmCallFailed;
+use App\Domain\Ports\Message;
 use App\Domain\Ports\ToolCallingPort;
+use App\Models\PendingAction;
 use App\Models\User;
-use LogicException;
 
 /**
  * Cas d'usage : l'agent de NoteFlow répond à une question de l'utilisateur.
@@ -17,8 +18,6 @@ use LogicException;
  * (un appel d'outil ou une réponse), le code décide : il exécute les outils
  * avec les droits de l'utilisateur, s'arrête au plafond d'étapes, met les
  * écritures en attente de confirmation et refuse une réponse sans source.
- *
- * À écrire à l'étape 5 du TP. Tests : tests/Tp2/NoteAgentTest.php
  */
 final class NoteAgent
 {
@@ -32,13 +31,65 @@ final class NoteAgent
     /** @throws LlmCallFailed */
     public function ask(string $question, User $user): AgentAnswer
     {
-        // 1. L'historique part avec la consigne (system) et la question (user).
-        // 2. Au plus $this->maxSteps appels à $this->llm->next().
-        // 3. Pas d'appel d'outil : vérifier la réponse et s'arrêter.
-        // 4. Sinon, pour chaque appel : outil inconnu ou arguments refusés,
-        //    l'erreur repart au modèle ; outil qui écrit, on s'arrête sur une
-        //    action en attente ; sinon on exécute et on renvoie le résultat.
-        // 5. Plafond atteint : on s'arrête aussi.
-        throw new LogicException('À écrire : étape 5 du TP (TP-S2-enonce.md).');
+        $messages = [Message::system($this->prompt->text), Message::user($question)];
+        $sources = [];
+
+        for ($step = 1; $step <= $this->maxSteps; $step++) {
+            $turn = $this->llm->next($messages, $this->tools->definitions());
+
+            // Pas d'appel d'outil : le modèle a fini, on vérifie sa réponse.
+            if (! $turn->hasToolCalls()) {
+                return $this->finish((string) $turn->text, $sources, $step);
+            }
+
+            $messages[] = Message::assistantToolCalls($turn);
+
+            foreach ($turn->toolCalls as $call) {
+                $tool = $this->tools->find($call->name);
+
+                if ($tool === null) {
+                    $result = ToolResult::error("Outil inconnu : {$call->name}. Outils disponibles : ".implode(', ', $this->tools->names()).'.');
+                } else {
+                    try {
+                        // Une écriture ne s'exécute pas ici : on s'arrête et on
+                        // montre l'action exacte à l'utilisateur.
+                        if ($tool instanceof RequiresApproval) {
+                            $description = $tool->describe($call->arguments, $user);
+
+                            return AgentAnswer::awaitingApproval(PendingAction::propose($user, $call, $description), $step);
+                        }
+
+                        $result = $tool->run($call->arguments, $user);
+                    } catch (InvalidToolArguments $e) {
+                        // L'erreur repart au modèle, qui peut corriger son appel.
+                        $result = ToolResult::error($e->getMessage());
+                    }
+                }
+
+                $sources = [...$sources, ...$result->sources];
+                $messages[] = Message::toolResult($call, $result->toJson());
+            }
+        }
+
+        return AgentAnswer::stepLimitReached($this->maxSteps);
+    }
+
+    /**
+     * Une réponse n'est acceptée que si elle cite au moins une note, et
+     * seulement des notes renvoyées par un outil pendant cette exécution.
+     * Sinon, c'est « je ne sais pas » : une note inventée, ou lue ailleurs
+     * que dans les résultats autorisés, ne passe pas.
+     *
+     * @param  list<int>  $sources
+     */
+    private function finish(string $text, array $sources, int $step): AgentAnswer
+    {
+        $cited = Citations::extract($text);
+
+        if (Citations::saysDontKnow($text) || $cited === [] || array_diff($cited, $sources) !== []) {
+            return AgentAnswer::dontKnow($step);
+        }
+
+        return AgentAnswer::answered(trim($text), $cited, $step);
     }
 }
