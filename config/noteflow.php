@@ -13,4 +13,13 @@ return [
         'max_steps' => (int) env('NOTEFLOW_AGENT_MAX_STEPS', 5),
     ],
 
+    /*
+     * La recherche branchée derrière chercher_notes.
+     *
+     * keyword : mots-clés, sur toute base (SQLite compris), sans modèle.
+     * vector  : similarité sur pgvector ; demande PostgreSQL et des notes
+     *           indexées (php artisan noteflow:index).
+     */
+    'search' => env('NOTEFLOW_SEARCH', 'keyword'),
+
 ];

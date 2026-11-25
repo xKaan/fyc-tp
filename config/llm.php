@@ -39,6 +39,21 @@ return [
     ],
 
     /*
+     * Vectorisation des notes (recherche par similarité, S2.3 et S2.4).
+     *
+     * Par défaut, le même fournisseur que LLM_PROVIDER. Le modèle et la
+     * dimension vont ensemble : la colonne pgvector est créée à cette
+     * dimension, et changer de modèle demande de réindexer toutes les notes
+     * (php artisan noteflow:index).
+     */
+    'embeddings' => [
+        'provider' => env('LLM_EMBEDDING_PROVIDER', env('LLM_PROVIDER', 'fake')),
+        'dimensions' => (int) env('LLM_EMBEDDING_DIMENSIONS', 768),
+        'http_model' => env('LLM_EMBEDDING_HTTP_MODEL', 'mistral-embed'),
+        'ollama_model' => env('LLM_EMBEDDING_OLLAMA_MODEL', 'nomic-embed-text'),
+    ],
+
+    /*
      * Version servie de chaque prompt (fichiers resources/prompts/<nom>/<version>.md).
      * Passer à v2 se fait ici, et revenir en arrière aussi.
      */

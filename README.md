@@ -9,6 +9,10 @@ adaptateurs »). Voir [TP-S1-enonce.md](TP-S1-enonce.md).
 
 - Branche `fyc-tp-s1` : le code de départ, à réorganiser.
 - Branche `fyc-tp-s1-correction` : le corrigé, avec `TP-S1-corrige.md`.
+- Branche `fyc-tp-s2` : NoteFlow, le dépôt de départ du TP S2.4
+  ([TP-S2-enonce.md](TP-S2-enonce.md)).
+- Branche `fyc-tp-s2-correction` : l'état fin S2, avec `TP-S2-corrige.md`,
+  point de départ du TP S3.4.
 
 ## Prérequis
 

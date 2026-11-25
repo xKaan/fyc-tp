@@ -21,7 +21,30 @@ services:
             - '.:/var/www/html'
         networks:
             - sail
-        depends_on: {}
+        depends_on:
+            - pgsql
+    # PostgreSQL avec pgvector, version épinglée (chapitre 00) : une image
+    # « latest » changerait de version sans prévenir.
+    pgsql:
+        image: 'pgvector/pgvector:0.8.7-pg18'
+        ports:
+            - '${FORWARD_DB_PORT:-5432}:5432'
+        environment:
+            PGPASSWORD: '${DB_PASSWORD:-secret}'
+            POSTGRES_DB: '${DB_DATABASE:-noteflow}'
+            POSTGRES_USER: '${DB_USERNAME:-sail}'
+            POSTGRES_PASSWORD: '${DB_PASSWORD:-secret}'
+        volumes:
+            - 'sail-pgsql:/var/lib/postgresql'
+        networks:
+            - sail
+        healthcheck:
+            test: ['CMD', 'pg_isready', '-q', '-d', '${DB_DATABASE:-noteflow}', '-U', '${DB_USERNAME:-sail}']
+            retries: 3
+            timeout: 5s
 networks:
     sail:
         driver: bridge
+volumes:
+    sail-pgsql:
+        driver: local

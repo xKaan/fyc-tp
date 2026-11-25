@@ -7,7 +7,11 @@ namespace App\Providers;
 use App\Application\Prompt;
 use App\Application\SuggestTags;
 use App\Application\SummarizeNote;
+use App\Domain\Ports\EmbeddingPort;
 use App\Domain\Ports\LlmPort;
+use App\Infrastructure\Embeddings\FakeEmbeddingAdapter;
+use App\Infrastructure\Embeddings\HttpEmbeddingAdapter;
+use App\Infrastructure\Embeddings\OllamaEmbeddingAdapter;
 use App\Infrastructure\Llm\FakeLlmAdapter;
 use App\Infrastructure\Llm\HttpLlmAdapter;
 use App\Infrastructure\Llm\OllamaAdapter;
@@ -43,6 +47,30 @@ class LlmServiceProvider extends ServiceProvider
                 ),
                 default => throw new InvalidArgumentException(
                     "Fournisseur LLM inconnu : [{$provider}]. Valeurs acceptées : fake, http, ollama."
+                ),
+            };
+        });
+
+        // Même configurateur pour la vectorisation : l'URL, la clé et le
+        // délai sont ceux du fournisseur, seul le modèle change.
+        $this->app->bind(EmbeddingPort::class, function (): EmbeddingPort {
+            $provider = config('llm.embeddings.provider');
+
+            return match ($provider) {
+                'fake' => new FakeEmbeddingAdapter((int) config('llm.embeddings.dimensions')),
+                'http' => new HttpEmbeddingAdapter(
+                    (string) config('llm.http.base_url'),
+                    config('llm.http.api_key'),
+                    (string) config('llm.embeddings.http_model'),
+                    (int) config('llm.http.timeout'),
+                ),
+                'ollama' => new OllamaEmbeddingAdapter(
+                    (string) config('llm.ollama.host'),
+                    (string) config('llm.embeddings.ollama_model'),
+                    (int) config('llm.ollama.timeout'),
+                ),
+                default => throw new InvalidArgumentException(
+                    "Fournisseur d'embeddings inconnu : [{$provider}]. Valeurs acceptées : fake, http, ollama."
                 ),
             };
         });

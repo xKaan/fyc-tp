@@ -85,6 +85,8 @@ class Note extends Model
 
     public function scopeMatchingTitle(Builder $query, string $terme): void
     {
-        $query->where('title', 'like', '%'.$terme.'%');
+        // whereLike, pas where('like') : insensible à la casse sous SQLite
+        // comme sous PostgreSQL, où LIKE distingue « cour » de « Cour ».
+        $query->whereLike('title', '%'.$terme.'%');
     }
 }
