@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\AgentController;
+use App\Http\Controllers\DemoLoginController;
 use App\Http\Controllers\NoteController;
 use Illuminate\Support\Facades\Route;
 
@@ -22,3 +24,18 @@ Route::post('/notes/{note}/summarize', [NoteController::class, 'summarize'])->na
 Route::post('/notes/{note}/tags', [NoteController::class, 'suggestTags'])->name('notes.tags');
 
 Route::get('/tag/{tag}', [NoteController::class, 'tagged'])->name('notes.tagged');
+
+// --- NoteFlow, séance 2 : l'agent ---
+
+if (app()->environment('local', 'testing')) {
+    Route::get('/connexion', [DemoLoginController::class, 'show'])->name('login');
+    Route::post('/connexion/{user}', [DemoLoginController::class, 'login'])->name('login.as');
+    Route::post('/deconnexion', [DemoLoginController::class, 'logout'])->name('logout');
+}
+
+Route::middleware('auth')->group(function () {
+    Route::get('/agent', [AgentController::class, 'show'])->name('agent.show');
+    Route::post('/agent', [AgentController::class, 'ask'])->name('agent.ask');
+    Route::post('/agent/actions/{action}/confirmer', [AgentController::class, 'confirm'])->name('agent.confirm');
+    Route::post('/agent/actions/{action}/annuler', [AgentController::class, 'cancel'])->name('agent.cancel');
+});

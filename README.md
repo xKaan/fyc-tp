@@ -34,10 +34,11 @@ docker run --rm -u "$(id -u):$(id -g)" -e COMPOSER_HOME=/tmp \
   bash -c "composer install && php artisan key:generate && php artisan migrate"
 ```
 
-Puis démarrez l'application :
+Puis démarrez l'application et chargez les données du fil rouge :
 
 ```bash
 ./vendor/bin/sail up -d
+./vendor/bin/sail artisan migrate:fresh --seed
 ```
 
 Elle répond sur http://localhost. Pour l'arrêter : `./vendor/bin/sail down`.
@@ -61,7 +62,7 @@ Le fournisseur se choisit dans `.env`, par la variable `LLM_PROVIDER` :
 |---|---|---|
 | `ollama` | modèle local, valeur conseillée | Ollama lancé, modèle téléchargé |
 | `http` | fournisseur en ligne compatible OpenAI (Mistral) | une clé dans `LLM_HTTP_API_KEY` |
-| `fake` | doublure de test, aucune requête réseau | rien (disponible une fois le TP fait) |
+| `fake` | doublure de test, aucune requête réseau | rien |
 
 **Ollama est le choix conseillé** : aucune clé à obtenir, aucun quota à
 partager, et l'application fonctionne sans connexion internet.

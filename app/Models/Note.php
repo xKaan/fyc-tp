@@ -8,6 +8,7 @@ use App\Casts\AsTagList;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
 class Note extends Model
@@ -18,7 +19,7 @@ class Note extends Model
     /** Longueur de l'apercu affiche dans la liste. */
     private const EXCERPT_LENGTH = 120;
 
-    protected $fillable = ['title', 'content', 'summary', 'tags'];
+    protected $fillable = ['title', 'content', 'summary', 'tags', 'project_id', 'author_id'];
 
     protected function casts(): array
     {
@@ -65,6 +66,18 @@ class Note extends Model
      * On encadre la colonne de virgules avant de comparer, sinon le tag
      * "cours" ressortirait sur toutes les notes taguees "courses".
      */
+    /** @return BelongsTo<Project, $this> */
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function author(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'author_id');
+    }
+
     public function scopeTagged(Builder $query, string $tag): void
     {
         $query->whereRaw("',' || tags || ',' LIKE ?", ['%,'.AsTagList::normalize($tag).',%']);

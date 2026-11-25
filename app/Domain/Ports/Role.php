@@ -9,10 +9,15 @@ namespace App\Domain\Ports;
  * contenu fourni par l'utilisateur (user) est la première ligne de défense
  * contre l'injection de prompt : elle ne suffit pas seule (séance 4), mais
  * sans elle aucune autre défense n'est possible.
+ *
+ * Le rôle Tool arrive en séance 2 : c'est le résultat d'un outil, renvoyé au
+ * modèle par l'application. Comme une note, c'est une donnée, pas une
+ * consigne.
  */
 enum Role: string
 {
     case System = 'system';
     case User = 'user';
     case Assistant = 'assistant';
+    case Tool = 'tool';
 }

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Mes Notes</title>
+    <title>NoteFlow</title>
     <style>
         body { font-family: system-ui, sans-serif; max-width: 780px; margin: 0 auto; padding: 24px; color: #222; }
         header { display: flex; gap: 16px; align-items: baseline; border-bottom: 1px solid #ddd; padding-bottom: 12px; margin-bottom: 24px; }
@@ -20,12 +20,18 @@
         button { background: #2563eb; color: #fff; border: 0; border-radius: 4px; padding: 8px 14px; font: inherit; cursor: pointer; }
         button.secondaire { background: #6b7280; }
         form.inline { display: inline; }
+        .attente { background: #fffbeb; border-left: 3px solid #d97706; padding: 8px 12px; margin: 12px 0; }
     </style>
 </head>
 <body>
 <header>
-    <h1><a href="{{ route('notes.index') }}">Mes Notes</a></h1>
+    <h1><a href="{{ route('notes.index') }}">NoteFlow</a></h1>
     <a href="{{ route('notes.create') }}">Nouvelle note</a>
+    <a href="{{ route('agent.show') }}">Assistant</a>
+    @auth
+        <small>{{ auth()->user()->name }}</small>
+        <form class="inline" method="post" action="{{ route('logout') }}">@csrf<button class="secondaire">Changer</button></form>
+    @endauth
 </header>
 
 @if (session('status'))

@@ -45,6 +45,7 @@ return [
     'prompts' => [
         'summarize-note' => env('LLM_PROMPT_SUMMARIZE_NOTE', 'v1'),
         'suggest-tags' => env('LLM_PROMPT_SUGGEST_TAGS', 'v1'),
+        'note-agent' => env('LLM_PROMPT_NOTE_AGENT', 'v1'),
     ],
 
 ];
