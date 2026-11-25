@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Adapters\TextGenerationFailed;
+use App\Application\SuggestTags;
+use App\Application\SummarizeNote;
+use App\Domain\Ports\LlmCallFailed;
 use App\Http\Requests\StoreNoteRequest;
 use App\Http\Requests\UpdateNoteRequest;
 use App\Models\Note;
-use App\UseCases\SuggestTags;
-use App\UseCases\SummarizeNote;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -81,7 +81,7 @@ class NoteController extends Controller
     {
         try {
             $summarize($note);
-        } catch (TextGenerationFailed) {
+        } catch (LlmCallFailed) {
             return back()->withErrors(['ai' => self::AI_UNAVAILABLE]);
         }
 
@@ -92,7 +92,7 @@ class NoteController extends Controller
     {
         try {
             $suggestTags($note);
-        } catch (TextGenerationFailed) {
+        } catch (LlmCallFailed) {
             return back()->withErrors(['ai' => self::AI_UNAVAILABLE]);
         }
 

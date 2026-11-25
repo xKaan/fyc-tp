@@ -29,7 +29,7 @@ class NoteAiTest extends TestCase
                 ],
             ]),
             'http://host.docker.internal:11434/*' => Http::response([
-                'response' => $texte,
+                'message' => ['role' => 'assistant', 'content' => $texte],
             ]),
         ]);
     }

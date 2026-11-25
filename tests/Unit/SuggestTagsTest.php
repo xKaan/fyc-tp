@@ -2,9 +2,11 @@
 
 namespace Tests\Unit;
 
-use App\Adapters\FakeTextGenerator;
+use App\Application\Prompt;
+use App\Application\SuggestTags;
+use App\Domain\Ports\Role;
+use App\Infrastructure\Llm\FakeLlmAdapter;
 use App\Models\Note;
-use App\UseCases\SuggestTags;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -12,34 +14,38 @@ class SuggestTagsTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function note(): Note
+    private function suggerer(FakeLlmAdapter $llm): void
     {
-        return Note::create(['title' => 'Courses', 'content' => 'Acheter du pain.']);
+        $note = Note::create(['title' => 'Courses', 'content' => 'Acheter du pain.']);
+
+        (new SuggestTags($llm, new Prompt('suggest-tags', 'test', 'Propose des tags.')))($note);
     }
 
     public function test_il_decoupe_et_normalise_la_reponse_du_modele(): void
     {
-        (new SuggestTags(new FakeTextGenerator('Courses, #Maison , ALIMENTATION')))($this->note());
+        $this->suggerer(new FakeLlmAdapter('Courses, #Maison , ALIMENTATION'));
 
         $this->assertSame('courses,maison,alimentation', Note::first()->tags);
     }
 
-    public function test_il_ne_garde_que_les_cinq_premiers_tags(): void
+    public function test_le_code_garantit_le_plafond_de_cinq_tags_meme_si_le_modele_l_ignore(): void
     {
-        (new SuggestTags(new FakeTextGenerator('un, deux, trois, quatre, cinq, six, sept')))($this->note());
+        $this->suggerer(new FakeLlmAdapter('un, deux, trois, quatre, cinq, six, sept'));
 
         $this->assertSame('un,deux,trois,quatre,cinq', Note::first()->tags);
     }
 
-    public function test_le_contenu_utilisateur_n_est_pas_concatene_a_l_instruction(): void
+    public function test_le_contenu_de_la_note_part_dans_le_message_utilisateur(): void
     {
-        $generateur = new FakeTextGenerator('courses');
+        $llm = new FakeLlmAdapter('courses');
 
-        (new SuggestTags($generateur))($this->note());
+        $this->suggerer($llm);
 
-        $appel = $generateur->calls[0];
+        [$consigne, $contenu] = $llm->calls[0];
 
-        $this->assertStringNotContainsString('Acheter du pain', $appel['instruction']);
-        $this->assertStringContainsString('Acheter du pain', $appel['input']);
+        $this->assertSame(Role::System, $consigne->role);
+        $this->assertStringNotContainsString('Acheter du pain', $consigne->content);
+        $this->assertSame(Role::User, $contenu->role);
+        $this->assertStringContainsString('Acheter du pain', $contenu->content);
     }
 }

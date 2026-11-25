@@ -1,160 +1,199 @@
-# TP S1.4 — Corrige
+# TP S1.3 : corrigé
 
-Ce document accompagne la branche `fyc-tp-s1-correction`. Le diff complet de la
-seance tient dans :
+Ce document accompagne la branche `fyc-tp-s1-correction`. Tout le diff du TP
+s'affiche avec :
 
 ```bash
 git diff fyc-tp-s1..fyc-tp-s1-correction
 ```
 
-## Ce que l'on cherchait a obtenir
+## Ce que l'on cherchait à obtenir
 
-Trois acquis, dans cet ordre :
+Quatre acquis, dans cet ordre :
 
-1. Un appel a un service externe volatil se cache derriere un contrat etroit.
-2. Le choix d'implementation est une decision de configuration, pas de code.
-3. Une frontiere bien posee rend testable ce qui ne l'etait pas.
+1. Un appel à un service externe imprévisible se cache derrière un contrat
+   défini par l'application.
+2. Le choix de l'implémentation est une décision de configuration, pas de
+   code.
+3. Une doublure branchée sur ce contrat rend testable ce qui ne l'était pas.
+4. Le prompt et le modèle sont de la configuration versionnée, au même titre
+   que le reste.
 
-Et un quatrieme, plus fin, qui n'apparait qu'ici : savoir ou **ne pas** poser
-de frontiere.
+Et un cinquième, plus fin : savoir où **ne pas** poser de frontière.
 
 ## Le diagnostic
 
-`summarize()` et `suggestTags()` faisaient chacune une soixantaine de lignes, et
-partageaient le meme squelette copie-colle : lecture de la cle d'API, `if` sur
-le fournisseur, `Http::post()`, extraction non gardee de la reponse,
-persistance, redirection. Deux fois le meme bloc, a un prompt pres.
+`summarize()` et `suggestTags()` faisaient chacune une soixantaine de lignes,
+avec le même squelette copié-collé : lecture de la clé, `if` sur le
+fournisseur, `Http::post()`, lecture de la réponse sans garde, persistance,
+redirection. Deux fois le même bloc, à un prompt près.
 
-Les trois questions de l'enonce :
+**Combien d'endroits faut-il modifier pour changer de fournisseur ?** Deux
+méthodes, quatre branches `if/else`. Et comme c'est du code, il faut
+redéployer : une décision d'exploitation coûtait une livraison.
 
-**Combien d'endroits faut-il modifier pour changer de fournisseur ?**
-Deux methodes, quatre branches `if/else`. Et comme c'est du code source, il faut
-redeployer. Une decision d'exploitation coutait une livraison.
-
-**Que se passe-t-il si l'API repond une erreur, ou un JSON inattendu ?**
+**Que se passe-t-il si l'API répond une erreur, ou un JSON inattendu ?**
 
 ```php
-$resume = $reponse->json()['choices'][0]['message']['content'];
+$resume = $reponse->json()['message']['content'];
 ```
 
-Sur un corps d'erreur, cette ligne leve une erreur PHP. L'utilisateur voit une
-page 500. Il n'y avait aucun `timeout()` non plus : une API lente bloquait la
-requete jusqu'a l'expiration du serveur web.
+Sur un corps d'erreur, cette ligne lève une erreur PHP et l'utilisateur voit
+une page 500. Il n'y avait pas de `timeout()` non plus : une API lente
+bloquait la requête jusqu'à l'expiration du serveur web.
 
-**Comment tester la construction du prompt sans appel reseau ?**
-On ne peut pas. Le prompt est construit a l'interieur meme de la methode qui
-fait l'appel. On ne peut tester que l'ensemble, avec `Http::fake()`, donc en
-connaissant l'URL et le format de reponse du fournisseur — c'est-a-dire en
-faisant entrer le fournisseur dans le test.
+**Comment tester le prompt sans appel réseau ?** On ne peut pas : il est
+construit dans la méthode qui fait l'appel. On ne peut tester que l'ensemble,
+avec `Http::fake()`, donc en connaissant l'URL et le format de réponse du
+fournisseur. Le fournisseur entre dans le test.
 
 ## Le port
 
 ```php
-interface TextGenerator
+interface LlmPort
 {
-    /** @throws TextGenerationFailed */
-    public function generate(string $instruction, string $input): string;
+    /** @param non-empty-list<Message> $messages @throws LlmCallFailed */
+    public function complete(array $messages): string;
 }
 ```
 
-Une methode, deux `string`, un `string`. Lisez surtout ce qui **n'y est pas** :
-pas de modele, pas de temperature, pas de cle d'API, pas de nom de fournisseur,
-pas de `Response`. Ce sont des details d'implementation.
+La forme « liste de messages avec un rôle » est celle de toutes les API de
+modèles actuelles. Elle tient jusqu'à la boucle d'agent de la séance 2, où
+l'historique et les résultats d'outils viendront s'ajouter à la liste sans
+changer la signature.
 
-> Un port decrit ce dont l'application a besoin, pas ce que le fournisseur sait
-> faire.
-
-C'est ce qui le rend stable : le jour ou l'on passe a un troisieme fournisseur,
-la signature ne bouge pas.
-
-La separation `instruction` / `input` regle au passage l'injection de prompt. Le
-contenu de la note n'est plus concatene dans la phrase de consigne — il part
-dans un canal distinct, que chaque adapter traduit dans le vocabulaire de son
-API.
-
-## Les adapters
-
-`MistralTextGenerator` envoie un tableau `messages` avec des roles. Ollama, lui,
-attend deux champs `system` et `prompt` a plat, plus `stream: false`. Les deux
-corps de requete n'ont **rien** en commun.
-
-C'est precisement ce que le port cache. Le code metier n'a jamais eu a
-connaitre ni l'un ni l'autre.
-
-Chaque adapter ajoute trois gardes que le code de depart n'avait pas :
+Lisez surtout ce qui **n'y est pas** : pas de modèle, pas de température, pas
+de clé, pas de nom de fournisseur, pas de tableau JSON. `Message` est un type
+de l'application, pas le format d'un fournisseur :
 
 ```php
-->timeout($this->timeout)                       // 1. on n'attend pas indefiniment
+$this->llm->complete([
+    Message::system($this->prompt->text),
+    Message::user($note->title."\n".$note->content),
+]);
+```
 
-if ($reponse->failed()) {                        // 2. une erreur HTTP est une panne
-    throw TextGenerationFailed::rejected('mistral', $reponse->status());
+La consigne et le contenu de la note partent dans deux messages distincts.
+C'est la condition de toute défense contre l'injection de prompt, sans en
+être une suffisante : la séance 4 y revient.
+
+## Les trois adaptateurs
+
+| Adaptateur | Point d'entrée | Où est la réponse |
+|---|---|---|
+| `HttpLlmAdapter` | `POST {base_url}/chat/completions` | `choices.0.message.content` |
+| `OllamaAdapter` | `POST {host}/api/chat`, `stream: false` | `message.content` |
+| `FakeLlmAdapter` | aucun | réponse fixe |
+
+`HttpLlmAdapter` vise le format OpenAI, que Mistral accepte : changer de
+fournisseur compatible, c'est changer l'URL, la clé et le modèle, pas la
+classe.
+
+Ollama expose aussi `/v1/chat/completions`. On garde pourtant un adaptateur à
+part, parce que le contrat n'est pas exactement le même : Ollama ne prend pas
+en charge `tool_choice`, `logit_bias` ni `n`, et sa fenêtre de contexte vaut
+4096 tokens par défaut. `OllamaAdapter` peut la régler appel par appel
+(`num_ctx`, variable `LLM_OLLAMA_CONTEXT_LENGTH`) ; sinon, c'est la valeur du
+serveur, réglée au chapitre 00 par `OLLAMA_CONTEXT_LENGTH`. Le port, lui, ne
+change pas : une ligne de configuration change l'adaptateur, pas le contrat.
+
+Chaque adaptateur réseau ajoute trois gardes que le code de départ n'avait
+pas :
+
+```php
+Http::timeout($this->timeout)                       // 1. on n'attend pas indéfiniment
+
+if ($reponse->failed()) {                           // 2. une erreur HTTP est une panne
+    throw LlmCallFailed::rejected('ollama', $reponse->status());
 }
 
-$texte = data_get($reponse->json(), 'choices.0.message.content');
-if (! is_string($texte) || trim($texte) === '') {  // 3. la forme est verifiee
-    throw TextGenerationFailed::unexpectedPayload('mistral');
+$texte = $reponse->json('message.content');
+if (! is_string($texte) || trim($texte) === '') {   // 3. la forme est vérifiée
+    throw LlmCallFailed::unexpectedPayload('ollama');
 }
 ```
 
-Une seule exception, `TextGenerationFailed`, pour les trois cas. Le code metier
-n'a pas a distinguer un timeout d'un quota depasse : il n'en ferait rien de
-different, et une exception par cause de panne ferait fuir les details du
-fournisseur dans le controleur.
+Une seule exception, `LlmCallFailed`, pour tous les cas, et elle appartient au
+port : le contrôleur l'attrape sans rien savoir du fournisseur. Il n'aurait
+rien fait de différent pour un timeout ou un quota dépassé. La séance 3, elle,
+distinguera les erreurs qui valent un nouvel essai.
 
-## Les use-cases
+**La doublure** est le troisième adaptateur. Elle enregistre les messages
+reçus, renvoie une réponse fixe, et `FakeLlmAdapter::failing()` simule une
+panne. C'est aussi le fournisseur par défaut (`LLM_PROVIDER=fake`) :
+l'application démarre sans clé ni modèle local, et la CI de la séance 5 en
+dépend.
+
+## Les cas d'usage
 
 ```php
 final class SummarizeNote
 {
-    private const INSTRUCTION = 'Resume la note suivante en 3 phrases maximum, en francais. '
-        .'Ne reponds que le resume, sans introduction.';
-
-    public function __construct(private readonly TextGenerator $generator) {}
+    public function __construct(
+        private readonly LlmPort $llm,
+        private readonly Prompt $prompt,
+    ) {}
 
     public function __invoke(Note $note): void
     {
-        $note->summary = $this->generator->generate(
-            self::INSTRUCTION,
-            $note->title."\n".$note->content,
-        );
+        $note->summary = $this->llm->complete([
+            Message::system($this->prompt->text),
+            Message::user($note->title."\n".$note->content),
+        ]);
 
         $note->save();
     }
 }
 ```
 
-Dix lignes utiles. Pas une seule de HTTP. Pas un nom de fournisseur. La seule
-dependance a Laravel est Eloquent, et c'est un choix assume (voir plus bas).
+Pas une ligne de HTTP, pas un nom de fournisseur, pas un chemin de fichier. Le
+plafond de cinq tags vit dans `SuggestTags` : le prompt le demande, mais c'est
+le code qui le garantit. On ne confie pas une règle métier au modèle.
 
-Le plafond de cinq tags vit dans `SuggestTags`, pas dans le cast : « au maximum
-cinq tags suggeres » est une regle de cette fonctionnalite, pas du format de
-stockage.
+## Le prompt et le modèle, de la configuration versionnée
 
-## La configuration
+Les consignes sont sorties du code :
 
-```php
-// config/ai.php
-'provider' => env('AI_PROVIDER', 'ollama'),
+```text
+resources/prompts/summarize-note/v1.md
+resources/prompts/suggest-tags/v1.md
 ```
 
-`AiServiceProvider` lit cette valeur et lie le port a l'adapter correspondant.
-C'est le seul `match` du projet sur le nom d'un fournisseur, et il est dans un
-service provider — c'est-a-dire dans la couche dont c'est le role.
+La version servie se choisit dans `config/llm.php` (`llm.prompts`). Changer
+une consigne de fond, c'est créer `v2.md` et changer une valeur ; revenir en
+arrière, c'est remettre `v1`. Le `Prompt` garde son nom et sa version : en
+séance 3, ils iront dans chaque trace, pour savoir quelle version a produit
+quelle réponse.
 
-> Changer de fournisseur coute desormais une ligne de `.env` et zero ligne de
-> code.
+Le modèle en ligne est épinglé : `mistral-small-2603` et non
+`mistral-small-latest`. Un alias change de modèle sans prévenir, et une mise à
+jour du modèle est un déploiement que l'on ne contrôle pas. Épingler ne
+protège pas de tout pour autant : un modèle daté finit par être retiré (c'est
+déjà le cas de `mistral-small-2506`), d'où la séance 5.
 
-**Pourquoi `env()` ne doit jamais etre appele hors de `config/`.** En production
-on execute `php artisan config:cache` : Laravel serialise tous les fichiers de
-`config/` dans un seul fichier compile, et **cesse de lire le `.env`**. Tout
-appel a `env()` situe ailleurs renvoie alors `null`. Le code de depart aurait
-donc bascule silencieusement sur sa valeur par defaut en production. C'est un
-bug qui ne se manifeste jamais en local.
-
-## Le test que l'ancienne architecture interdisait
+## La configuration et le configurateur
 
 ```php
-Http::fake(['*' => Http::response('service indisponible', 500)]);
+// config/llm.php
+'provider' => env('LLM_PROVIDER', 'fake'),
+```
+
+`LlmServiceProvider` lit cette valeur, lie `LlmPort` à l'adaptateur
+correspondant, et donne à chaque cas d'usage son prompt dans la version
+configurée. C'est le seul `match` du projet sur le nom d'un fournisseur.
+
+> Changer de fournisseur coûte une ligne de `.env` et zéro ligne de code.
+
+**Pourquoi `env()` ne s'appelle jamais hors de `config/`.** En production, on
+lance `php artisan config:cache` : Laravel compile tous les fichiers de
+`config/` en un seul et **cesse de lire le `.env`**. Un `env()` placé ailleurs
+renvoie alors `null`. Le code de départ aurait basculé en silence sur sa valeur
+par défaut en production, un bug qui ne se voit jamais en local.
+
+## Les tests que l'ancienne architecture interdisait
+
+```php
+$this->app->instance(LlmPort::class, FakeLlmAdapter::failing());
 
 $this->followingRedirects()
     ->from('/notes/'.$note->id)
@@ -163,32 +202,32 @@ $this->followingRedirects()
     ->assertSee("Le service d'IA n'a pas repondu.");
 ```
 
-Sur la branche de depart, ce test ne peut pas etre vert : l'application repond
-une 500. Mais surtout, il ne peut pas etre **ecrit** : il n'y avait aucun
-comportement propre a affirmer.
+On simule la panne sans connaître d'URL ni de format de réponse : on remplace
+le fournisseur dans le conteneur. Sur la branche de départ, ce test ne peut
+pas être écrit, il n'y a ni contrat à remplacer, ni comportement propre à
+affirmer.
 
-La frontiere n'a pas seulement rendu le code testable. Elle a rendu le
-comportement *definissable* : il existe maintenant un endroit — le controleur —
-dont c'est le role de decider ce que voit l'utilisateur quand l'IA tombe.
+De même, `SummarizeNoteTest` vérifie sans réseau que la consigne part en rôle
+`system` et la note en rôle `user`. Le format JSON de chaque fournisseur n'est
+vérifié qu'à un endroit : dans les tests de son adaptateur
+(`HttpLlmAdapterTest`, `OllamaAdapterTest`).
 
-## Encadre — quand ne pas poser de frontiere
+## Encadré : quand ne pas poser de frontière
 
-Il n'y a volontairement **aucun** `NoteRepositoryInterface` dans ce corrige.
+Il n'y a volontairement **aucun** `NoteRepository` dans ce corrigé : les cas
+d'usage travaillent directement avec le modèle Eloquent `Note`.
 
-L'IA justifie un port : service externe, lent, faillible, facture, remplacable,
-et dont le fournisseur peut changer pour des raisons qui n'ont rien a voir avec
-la technique.
+L'IA justifie un port : service externe, lent, faillible, facturé,
+remplaçable, dont le fournisseur peut changer pour des raisons qui n'ont rien
+de technique. Eloquent, non : c'est un choix structurant du framework, stable
+sur la durée du projet, et déjà testable avec SQLite en mémoire. Un port de
+plus coûterait des mappers et des entités en double, pour un bénéfice nul ici.
 
-Eloquent, non : c'est un choix structurant du framework, stable sur la duree de
-vie du projet, et deja testable via SQLite en memoire. Un port couterait des
-mappers, des entites dupliquees et la perte des fonctionnalites du framework,
-pour un benefice nul.
+Le critère n'est pas « un port partout », mais « un port là où l'instabilité
+et le coût de test le justifient ». C'est le même critère que la grille
+applique ensuite aux SDK.
 
-Le critere n'est pas « toujours un port » mais « un port la ou la volatilite et
-le cout de test le justifient ». C'est le meme critere que la grille applique
-ensuite aux SDK.
-
-## Encadre — ce que les tests geles nous ont impose
+## Encadré : ce que les tests gelés nous ont imposé
 
 `NoteAiTest` affirme :
 
@@ -196,75 +235,63 @@ ensuite aux SDK.
 $this->assertSame('courses,maison,alimentation', $note->fresh()->tags);
 ```
 
-Le format CSV fait donc partie du contrat observable. Un cast qui renverrait un
-tableau, comme on le ferait spontanement, casse ce test — et les tests etaient
-la regle du jeu.
-
-Le cast `AsTagList` normalise donc a l'ecriture (il accepte une chaine ou un
-tableau, met en minuscules, retire les `#`, dedoublonne) et conserve la chaine a
-la lecture. La lecture structuree passe par un accessor :
-
-```php
-protected function tagList(): Attribute
-{
-    return Attribute::get(fn (): array => AsTagList::parse($this->tags));
-}
-```
-
-Les vues font desormais `@foreach ($note->tag_list as $tag)` au lieu de
-redecouper la chaine a la main. Le parsing n'est plus a trois endroits : il est
-a un seul, dans la couche modele.
+Le format CSV fait donc partie du contrat observable. Un cast qui renverrait
+un tableau casserait ce test, et les tests étaient la règle du jeu. Le cast
+`AsTagList` normalise à l'écriture (chaîne ou tableau, minuscules, sans `#`,
+sans doublon) et garde la chaîne à la lecture ; la liste passe par l'accessor
+`tag_list`. Le découpage n'est plus fait à trois endroits, mais à un seul.
 
 > Une suite de tests ne fige pas seulement le comportement, elle fige aussi une
-> partie de la representation. C'est le prix du filet de securite, et il est bon
-> marche compare au refactor a l'aveugle.
+> partie de la représentation. C'est le prix du filet de sécurité, et il reste
+> bon marché à côté d'une réorganisation à l'aveugle.
 
-## Les autres defauts corriges
+## Les autres défauts corrigés
 
-| #  | Erreur du code de depart | Corrigee par |
+| N° | Défaut du code de départ | Corrigé par |
 |----|---|---|
-| 1  | Controleur god-object, methodes de 70 lignes | `SummarizeNote`, `SuggestTags`, adapters |
-| 2  | Validation inline sur `$request->all()` | `StoreNoteRequest`, `UpdateNoteRequest` |
+| 1  | Contrôleur fourre-tout, méthodes de 60 lignes | `SummarizeNote`, `SuggestTags`, adaptateurs |
+| 2  | Validation écrite à la main | `StoreNoteRequest`, `UpdateNoteRequest` |
 | 3  | `protected $guarded = []` | `$fillable` explicite sur `Note` |
-| 4  | `env()` hors de `config/` | `config/ai.php` |
-| 5  | Bloc HTTP et prompt dupliques | un port, deux adapters |
-| 6  | `if ($provider == 'mistral')` dans le metier | `AiServiceProvider` pilote par la config |
-| 7  | Aucun timeout, aucune gestion d'erreur | `timeout()` + `TextGenerationFailed` |
-| 8  | Acces tableau non garde sur le JSON | garde `is_string()` + exception typee |
-| 9  | Contenu utilisateur concatene au prompt | signature `generate($instruction, $input)` |
-| 10 | Logique metier dans les vues (`@php`) | accessors `excerpt`, `word_count`, `reading_time` |
-| 11 | Tags CSV parses a trois endroits | cast `AsTagList` + accessor `tag_list` |
-| 12 | `Note::all()` puis filtrage en PHP | scopes `matchingTitle` et `tagged`, filtrage en SQL |
-| 13 | Pas de route model binding, `first()` sans garde | `Note $note` en signature, 404 automatique |
-| 14 | Closures de route faisant du metier, suppression en `GET` | `NoteController::tagged()` et `destroy()`, verbe `DELETE` |
-| 15 | URLs en dur | `route('notes.show', $note)` partout |
-| 16 | `Log::info($request->all())` | supprime |
-| 17 | Code mort commente, nombres magiques | supprime ; constantes `WORDS_PER_MINUTE`, `EXCERPT_LENGTH`, `MAX_TAGS` |
-| 18 | Nommage mele francais / anglais | identifiants en anglais, commentaires en francais |
+| 4  | `env()` hors de `config/` | `config/llm.php` |
+| 5  | Bloc HTTP et prompt dupliqués | un port, trois adaptateurs, prompts dans `resources/prompts/` |
+| 6  | `if ($provider == 'http')` dans le contrôleur | `LlmServiceProvider` piloté par la configuration |
+| 7  | Aucun timeout, aucune gestion d'erreur | `timeout()` et `LlmCallFailed` |
+| 8  | Lecture du JSON sans garde | vérification de la forme, exception du port |
+| 9  | Note concaténée dans la consigne | `Message::system()` et `Message::user()` |
+| 10 | Modèle en alias `-latest`, écrit en dur | identifiant daté dans `config/llm.php` |
+| 11 | Logique métier dans les vues (`@php`) | accessors `excerpt`, `word_count`, `reading_time` |
+| 12 | Tags CSV découpés à trois endroits | cast `AsTagList` et accessor `tag_list` |
+| 13 | `Note::all()` puis filtrage en PHP | scopes `matchingTitle` et `tagged`, filtrage en SQL |
+| 14 | Pas de route model binding, `first()` sans garde | `Note $note` en signature, 404 automatique |
+| 15 | Closures de route qui font du métier, suppression en `GET` | `NoteController::tagged()` et `destroy()`, verbe `DELETE` |
+| 16 | URL en dur | `route('notes.show', $note)` partout |
+| 17 | `Log::info($request->all())` | supprimé |
+| 18 | Code mort commenté, nombres magiques | supprimé ; constantes `WORDS_PER_MINUTE`, `EXCERPT_LENGTH`, `MAX_TAGS` |
 
-Sur la suppression (n°14) : la route la plus destructrice du projet etait la
-seule sans test, et repondait a une requete `GET`. N'importe quel prefetch de
-navigateur pouvait effacer une note. Elle passe en `DELETE`, et
-`tests/Feature/NoteDeleteTest.php` la couvre desormais.
+Sur la suppression (n° 15) : la route la plus destructrice du projet était la
+seule sans test, et répondait à une requête `GET`. Un simple préchargement de
+lien par le navigateur pouvait effacer une note. Elle passe en `DELETE`, et
+`tests/Feature/NoteDeleteTest.php` la couvre désormais.
 
-## Verifier soi-meme
+## Vérifier soi-même
 
 ```bash
 ./vendor/bin/sail artisan test
 ```
 
-42 tests, dont les 10 de depart inchanges.
+49 tests, dont les 10 de départ inchangés.
 
 ```bash
 git diff fyc-tp-s1..fyc-tp-s1-correction -- \
   tests/Feature/NoteCrudTest.php tests/Feature/NoteAiTest.php database/migrations/
 ```
 
-Ne doit rien afficher : ni les tests fournis, ni la migration n'ont ete touches.
+Ne doit rien afficher : ni les tests fournis, ni la migration n'ont été
+touchés.
 
 ```bash
 grep -rn "api.mistral.ai\|11434\|mistral-small\|llama3.2" app/ routes/ resources/
 ```
 
-Ne doit rien afficher non plus : plus une seule URL ni un seul nom de modele en
+Ne doit rien afficher non plus : plus aucune URL ni aucun nom de modèle en
 dehors de `config/`.

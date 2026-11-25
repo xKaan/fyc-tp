@@ -1,33 +1,31 @@
-# Mes Notes — application de prise de notes avec IA
+# Mes Notes : application de prise de notes avec IA
 
-Petite application Laravel de prise de notes, avec deux fonctionnalites d'IA :
-resumer une note, et suggerer des tags. Aucun SDK d'IA n'est utilise : tout
+Petite application Laravel de prise de notes, avec deux fonctionnalités d'IA :
+résumer une note et suggérer des tags. Aucun SDK d'IA n'est utilisé : tout
 passe par des appels HTTP directs.
 
-Deux fournisseurs sont possibles :
+Ce dépôt sert de support au TP S1.3 du cours (« un port, trois
+adaptateurs »). Voir [TP-S1-enonce.md](TP-S1-enonce.md).
 
-- **Mistral** — API cloud, necessite une cle
-- **Ollama** — modele execute en local sur votre machine
+- Branche `fyc-tp-s1` : le code de départ, à réorganiser.
+- Branche `fyc-tp-s1-correction` : le corrigé, avec `TP-S1-corrige.md`.
 
-Ce depot sert de support au TP S1.4 (« reorganiser un code fourre-tout »).
-Voir [TP-S1-enonce.md](TP-S1-enonce.md).
+## Prérequis
 
-## Prerequis
-
-- Docker Desktop, avec l'integration WSL activee si vous etes sous Windows
-  (Settings → Resources → WSL Integration)
-
-Aucune installation de PHP ni de Composer n'est necessaire.
+L'environnement du chapitre 00 doit être installé : Docker Desktop (avec
+l'intégration WSL activée sous Windows, Settings → Resources → WSL
+Integration) et Ollama avec un petit modèle. Aucune installation de PHP ni de
+Composer n'est nécessaire.
 
 ## Installation
 
 ```bash
-git clone <url-du-depot> fyc-tp
+git clone https://github.com/xKaan/fyc-tp.git
 cd fyc-tp
 cp .env.example .env
 ```
 
-Installez les dependances sans avoir PHP en local :
+Installez les dépendances sans avoir PHP en local :
 
 ```bash
 docker run --rm -u "$(id -u):$(id -g)" -e COMPOSER_HOME=/tmp \
@@ -36,13 +34,13 @@ docker run --rm -u "$(id -u):$(id -g)" -e COMPOSER_HOME=/tmp \
   bash -c "composer install && php artisan key:generate && php artisan migrate"
 ```
 
-Puis demarrez l'application :
+Puis démarrez l'application :
 
 ```bash
 ./vendor/bin/sail up -d
 ```
 
-Elle repond sur http://localhost. Pour l'arreter : `./vendor/bin/sail down`.
+Elle répond sur http://localhost. Pour l'arrêter : `./vendor/bin/sail down`.
 
 ## Commandes utiles
 
@@ -52,64 +50,62 @@ Elle repond sur http://localhost. Pour l'arreter : `./vendor/bin/sail down`.
 ./vendor/bin/sail artisan tinker        # console interactive
 ```
 
-Les tests n'appellent jamais de service d'IA reel : les requetes HTTP sont
-simulees. Ils fonctionnent donc sans cle et sans connexion.
+Les tests n'appellent jamais de service d'IA réel : les requêtes HTTP sont
+simulées. Ils fonctionnent donc sans clé et sans connexion.
 
 ## Configurer l'IA
 
-Le fournisseur se choisit dans `.env` :
+Le fournisseur se choisit dans `.env`, par la variable `LLM_PROVIDER` :
 
-```dotenv
-AI_PROVIDER=ollama
-```
+| Valeur | Fournisseur | Ce qu'il faut |
+|---|---|---|
+| `ollama` | modèle local, valeur conseillée | Ollama lancé, modèle téléchargé |
+| `http` | fournisseur en ligne compatible OpenAI (Mistral) | une clé dans `LLM_HTTP_API_KEY` |
+| `fake` | doublure de test, aucune requête réseau | rien (disponible une fois le TP fait) |
 
-**Ollama est le choix conseille pour ce TP** : aucune cle a obtenir, aucun
-quota a partager, et l'application fonctionne sans connexion internet.
+**Ollama est le choix conseillé** : aucune clé à obtenir, aucun quota à
+partager, et l'application fonctionne sans connexion internet.
 
-### Option 1 — Mistral (cloud)
+### Ollama (local)
 
-Creez une cle sur https://console.mistral.ai, puis renseignez
-`MISTRAL_API_KEY` dans `.env`. Le palier gratuit suffit largement pour ce TP.
-
-### Option 2 — Ollama (local)
-
-Installez Ollama depuis https://ollama.com, puis telechargez un modele :
+Le modèle utilisé est `llama3.2:3b`. S'il n'est pas déjà installé :
 
 ```bash
 ollama pull llama3.2:3b
 ```
 
-Dans `.env` :
-
-```dotenv
-AI_PROVIDER=ollama
-```
-
-**Sous Windows avec Docker** : Ollama tourne sur Windows tandis que Laravel
-tourne dans un conteneur. Le conteneur joint alors Ollama sur
-`host.docker.internal:11434`, ce qui est deja l'adresse utilisee par
-l'application.
-
-Verifiez qu'Ollama repond :
+L'application tourne dans un conteneur, Ollama sur votre machine : le
+conteneur le joint sur `host.docker.internal:11434`, l'adresse déjà utilisée
+par l'application. Vérifiez qu'Ollama répond :
 
 ```bash
 curl http://localhost:11434/api/tags
 ```
 
-### Important : le premier appel est lent
+### Fournisseur en ligne (Mistral)
 
-Ollama ne charge le modele en memoire qu'a la premiere requete. Ce chargement
-prend plusieurs dizaines de secondes — parfois plus que le delai d'attente de
-l'application, qui renvoie alors une erreur. Les appels suivants sont
-immediats : moins d'une seconde sur une machine equipee d'un GPU.
+Créez une clé sur https://console.mistral.ai, puis dans `.env` :
 
-**Chauffez donc le modele avant de commencer**, une seule fois par session :
-
-```bash
-curl http://localhost:11434/api/generate \
-  -d '{"model":"llama3.2:3b","prompt":"bonjour","stream":false}'
+```dotenv
+LLM_PROVIDER=http
+LLM_HTTP_API_KEY=votre-cle
 ```
 
-Attendez que la commande rende la main. L'application repondra ensuite
-normalement. Le modele est decharge de la memoire apres quelques minutes
-d'inactivite : si vous reprenez apres une longue pause, rechauffez-le.
+Le palier gratuit suffit pour ce TP.
+
+### Le premier appel à Ollama est lent
+
+Ollama ne charge le modèle en mémoire qu'à la première requête. Ce chargement
+prend plusieurs dizaines de secondes, parfois plus que le délai d'attente de
+l'application, qui renvoie alors une erreur. Les appels suivants sont bien plus
+rapides.
+
+**Chauffez donc le modèle avant de commencer**, une fois par session :
+
+```bash
+curl http://localhost:11434/api/chat \
+  -d '{"model":"llama3.2:3b","messages":[{"role":"user","content":"bonjour"}],"stream":false}'
+```
+
+Attendez que la commande rende la main. Le modèle est déchargé de la mémoire
+après quelques minutes d'inactivité : après une longue pause, rechauffez-le.
