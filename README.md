@@ -9,6 +9,8 @@ adaptateurs »). Voir [TP-S1-enonce.md](TP-S1-enonce.md).
 
 - Branche `fyc-tp-s1` : le code de départ, à réorganiser.
 - Branche `fyc-tp-s1-correction` : le corrigé, avec `TP-S1-corrige.md`.
+- Branche `fyc-etude-s1-2` : l'étude de cas S1.2 (timeout réel d'un appel
+  d'IA dans un contrôleur), voir [etude/README.md](etude/README.md).
 
 ## Prérequis
 

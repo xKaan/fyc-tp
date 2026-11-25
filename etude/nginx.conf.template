@@ -1,0 +1,25 @@
+server {
+    listen 80;
+    root /var/www/html/public;
+    index index.php;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    # État de PHP-FPM : processus actifs, inactifs, requêtes en attente.
+    location = /fpm-status {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_NAME /fpm-status;
+        fastcgi_param SCRIPT_FILENAME /fpm-status;
+        fastcgi_pass php:9000;
+    }
+
+    location ~ \.php$ {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        fastcgi_pass php:9000;
+        # Combien de temps nginx attend PHP avant de renvoyer une erreur 504.
+        fastcgi_read_timeout ${NGINX_DELAI}s;
+    }
+}

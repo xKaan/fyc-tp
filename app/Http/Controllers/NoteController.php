@@ -101,7 +101,7 @@ class NoteController extends Controller
             $reponse = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $cle,
                 'Content-Type' => 'application/json',
-            ])->post('https://api.mistral.ai/v1/chat/completions', [
+            ])->post(env('LLM_HTTP_URL', 'https://api.mistral.ai/v1/chat/completions'), [
                 'model' => 'mistral-small-latest',
                 'messages' => [
                     [
@@ -151,7 +151,7 @@ class NoteController extends Controller
             $reponse = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $cle,
                 'Content-Type' => 'application/json',
-            ])->post('https://api.mistral.ai/v1/chat/completions', [
+            ])->post(env('LLM_HTTP_URL', 'https://api.mistral.ai/v1/chat/completions'), [
                 'model' => 'mistral-small-latest',
                 'messages' => [
                     [

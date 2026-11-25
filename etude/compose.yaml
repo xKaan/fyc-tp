@@ -1,0 +1,42 @@
+# Étude de cas S1.2 : un appel d'IA dans un contrôleur, timeout réel.
+# Pile de production en miniature : nginx devant PHP-FPM (8 processus),
+# et un faux fournisseur d'IA dont on règle la lenteur.
+#
+#   docker compose -f etude/compose.yaml up -d --build
+#
+# Réglages (variables d'environnement, voir etude/README.md) :
+#   LLM_DELAI    secondes avant que le faux fournisseur réponde (défaut 8)
+#   NGINX_DELAI  secondes avant que nginx abandonne PHP (défaut 60)
+
+services:
+    nginx:
+        image: nginx:1.27-alpine
+        ports:
+            - '${ETUDE_PORT:-8080}:80'
+        environment:
+            NGINX_DELAI: '${NGINX_DELAI:-60}'
+        volumes:
+            - '..:/var/www/html:ro'
+            - './nginx.conf.template:/etc/nginx/templates/default.conf.template:ro'
+        depends_on:
+            - php
+
+    php:
+        build: ./php
+        environment:
+            LLM_PROVIDER: http
+            LLM_HTTP_URL: 'http://faux-llm:8000/v1/chat/completions'
+            LLM_HTTP_API_KEY: 'pas-une-vraie-cle'
+            SESSION_DRIVER: file
+            CACHE_STORE: file
+            LOG_CHANNEL: stderr
+        volumes:
+            - '..:/var/www/html'
+
+    faux-llm:
+        image: python:3.13-alpine
+        command: ['python', '-u', '/app/faux_llm.py']
+        environment:
+            LLM_DELAI: '${LLM_DELAI:-8}'
+        volumes:
+            - './faux_llm.py:/app/faux_llm.py:ro'
