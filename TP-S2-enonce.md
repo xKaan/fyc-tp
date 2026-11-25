@@ -231,9 +231,10 @@ Ouvrez http://localhost/connexion, connectez-vous en Alice, puis allez sur
 Refaites la question 2 en Chloé. Si vous avez une clé, refaites la série
 avec `LLM_PROVIDER=http` : une ligne de `.env`, aucune ligne de code.
 
-Pendant ce temps, **notez dans un journal** chaque comportement observé :
-la réponse, la raison d'arrêt affichée en bas, le nombre d'étapes, et tout
-ce qui vous surprend. Un petit modèle local se trompe souvent : il appelle
+Pendant ce temps, **notez dans le journal**
+[journal-comportements.md](journal-comportements.md) chaque comportement
+observé : la réponse, les sources, la raison d'arrêt affichée en bas, le
+nombre d'étapes, et tout ce qui vous surprend. Un petit modèle local se trompe souvent : il appelle
 le mauvais outil, oublie de citer, invente un identifiant. C'est
 exactement ce qu'il faut noter : le code doit tenir même quand le modèle se
 trompe.
