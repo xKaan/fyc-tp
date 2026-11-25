@@ -230,6 +230,12 @@ une réponse avec source, une note interdite, une tâche proposée, un « je ne
 sais pas », et un cas où le modèle se trompe et où le code tient. Chacun est
 relié au test automatique qui vérifie le même garde-fou avec une doublure.
 
+Les colonnes « Observé » viennent d'une passe réelle sur Ollama, avec le
+modèle du cours (`llama3.2:3b`) et un modèle plus gros (`qwen3:8b`). Le petit
+modèle oublie des citations et écrit parfois ses appels d'outils dans le
+texte au lieu de les émettre : le cas 3 n'aboutit jamais avec lui. Le code
+tient à chaque fois, et c'est le point à retenir.
+
 Vos cas n'ont pas à être les mêmes. Ils doivent couvrir des comportements
 différents, et chacun doit se vérifier sans lire la réponse mot à mot.
 
