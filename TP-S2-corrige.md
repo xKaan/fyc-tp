@@ -203,16 +203,19 @@ NOTEFLOW_SEARCH=vector
 Téléchargez le modèle de vectorisation, puis indexez :
 
 ```bash
-ollama pull nomic-embed-text
+ollama pull embeddinggemma
 ./vendor/bin/sail up -d
 ./vendor/bin/sail artisan migrate:fresh --seed
 ./vendor/bin/sail artisan noteflow:index
 ```
 
-Relancer `noteflow:index` ne recalcule que les notes modifiées. Avec le
-fournisseur en ligne, `mistral-embed` produit des vecteurs de dimension
-1024 : réglez `LLM_EMBEDDING_DIMENSIONS=1024` **avant** la migration, car la
-colonne est créée à cette dimension.
+Relancer `noteflow:index` ne recalcule que les notes modifiées.
+`embeddinggemma` produit des vecteurs de dimension 768, la valeur par
+défaut. Un autre modèle (par exemple `mistral-embed` avec le fournisseur en
+ligne) peut en produire une autre : mesurez la longueur d'un vecteur qu'il
+renvoie et réglez `LLM_EMBEDDING_DIMENSIONS` **avant** la migration, car la
+colonne est créée à cette dimension. Une dimension fausse fait échouer
+`noteflow:index` avec une erreur de pgvector, jamais en silence.
 
 Une correction en passant : sous PostgreSQL, `LIKE` distingue les
 majuscules. Le filtre par titre de la séance 1 (`Note::matchingTitle`) passe
@@ -270,7 +273,7 @@ git diff fyc-tp-s2..fyc-tp-s2-correction -- tests/Tp2/
 Ne doit rien afficher : les tests de l'énoncé n'ont pas été touchés.
 
 ```bash
-grep -rn "api.mistral.ai\|11434\|mistral-embed\|nomic-embed" app/ routes/ resources/
+grep -rn "api.mistral.ai\|11434\|mistral-embed\|embeddinggemma" app/ routes/ resources/
 ```
 
 Ne doit rien afficher non plus : les URL et les noms de modèle restent dans

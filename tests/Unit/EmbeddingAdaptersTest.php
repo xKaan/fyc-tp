@@ -20,12 +20,12 @@ class EmbeddingAdaptersTest extends TestCase
     {
         Http::fake(['*' => Http::response(['embeddings' => [[0.1, 0.2], [0.3, 0.4]]])]);
 
-        $vecteurs = (new OllamaEmbeddingAdapter('http://host.docker.internal:11434', 'nomic-embed-text', 120))
+        $vecteurs = (new OllamaEmbeddingAdapter('http://host.docker.internal:11434', 'embeddinggemma', 120))
             ->embed(['un', 'deux']);
 
         $this->assertSame([[0.1, 0.2], [0.3, 0.4]], $vecteurs);
         Http::assertSent(fn (Request $requete) => $requete->url() === 'http://host.docker.internal:11434/api/embed'
-            && $requete['model'] === 'nomic-embed-text'
+            && $requete['model'] === 'embeddinggemma'
             && $requete['input'] === ['un', 'deux']);
     }
 
@@ -51,7 +51,7 @@ class EmbeddingAdaptersTest extends TestCase
 
         $this->expectException(LlmCallFailed::class);
 
-        (new OllamaEmbeddingAdapter('http://localhost:11434', 'nomic-embed-text', 120))->embed(['un', 'deux']);
+        (new OllamaEmbeddingAdapter('http://localhost:11434', 'embeddinggemma', 120))->embed(['un', 'deux']);
     }
 
     public function test_une_erreur_http_est_une_panne_du_port(): void

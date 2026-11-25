@@ -50,7 +50,7 @@ return [
         'provider' => env('LLM_EMBEDDING_PROVIDER', env('LLM_PROVIDER', 'fake')),
         'dimensions' => (int) env('LLM_EMBEDDING_DIMENSIONS', 768),
         'http_model' => env('LLM_EMBEDDING_HTTP_MODEL', 'mistral-embed'),
-        'ollama_model' => env('LLM_EMBEDDING_OLLAMA_MODEL', 'nomic-embed-text'),
+        'ollama_model' => env('LLM_EMBEDDING_OLLAMA_MODEL', 'embeddinggemma'),
     ],
 
     /*
